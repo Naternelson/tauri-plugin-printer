@@ -34,18 +34,24 @@ pub fn init_windows() {
 /**
  * Get printers on windows using powershell
  */
-pub async fn get_printers_async() -> Result<String, Box<dyn std::error::Error>> {
-    // Execute the PowerShell command asynchronously
-    let output = Command::new("powershell")
-        .args(["Get-Printer | Select-Object Name, DriverName, JobCount, PrintProcessor, PortName, ShareName, ComputerName, PrinterStatus, Shared, Type, Priority | ConvertTo-Json"])
-        .stdout(Stdio::piped())
-        .output()
-        .await?;
+pub fn get_printers() -> String {
+    // Create a channel for communication
+    let (sender, receiver) = mpsc::channel();
 
-    // Convert the output to a UTF-8 string
-    let printers_json = String::from_utf8(output.stdout)?;
+    // Spawn a new thread
+    thread::spawn(move || {
+        let output: tauri::api::process::Output = Command::new("powershell").args(["Get-Printer | Select-Object Name, DriverName, JobCount, PrintProcessor, PortName, ShareName, ComputerName, PrinterStatus, Shared, Type, Priority | ConvertTo-Json"]).output().unwrap();
 
-    Ok(printers_json)
+        sender.send(output.stdout.to_string()).unwrap();
+    });
+
+    // Do other non-blocking work on the main thread
+
+    // Receive the result from the spawned thread
+    let result: String = receiver.recv().unwrap();
+
+
+    return result
 }
 
 /**
